@@ -1,0 +1,164 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SurveyFlow</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.451.0/dist/umd/lucide.min.js"></script>
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--ink:#0f1b33;--mut:#5d6b85;--line:#e2e7ef;--navy:#14284b;--blue:#3b6fd8;--soft:#e8effc;--ok:#1f9d6b;--bad:#d64545}
+[data-theme=dark]{--bg:#0d1424;--card:#151e33;--ink:#e8edf7;--mut:#97a3bd;--line:#26314d;--navy:#7aa2f7;--blue:#6b95ee;--soft:#1c2a4a}
+*{box-sizing:border-box}body{margin:0;font:15px/1.55 Manrope,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+h1,h2,h3{line-height:1.2;margin:0 0 .5em;color:var(--navy)}a{color:var(--blue);text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+input,select,textarea{width:100%;padding:.6rem .75rem;border:1px solid var(--line);border-radius:8px;background:var(--card);margin:.25rem 0 .8rem}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.btn{display:inline-flex;gap:.4rem;align-items:center;padding:.55rem 1rem;border:1px solid var(--line);border-radius:8px;background:var(--card);cursor:pointer;font-weight:600}
+.btn.p{background:var(--navy);color:#fff;border-color:var(--navy)}[data-theme=dark] .btn.p{color:#0d1424}.btn.d{color:var(--bad)}.btn.s{padding:.3rem .6rem;font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.2rem;margin-bottom:1rem}
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}.sp{flex:1}
+.tag{padding:.1rem .55rem;border-radius:99px;font-size:12px;font-weight:700;background:var(--soft);color:var(--blue)}.tag.active{background:#dcf5ea;color:var(--ok)}.tag.closed{background:#fde4e4;color:var(--bad)}
+.wrap{max-width:1080px;margin:auto;padding:0 1.2rem}nav.top{display:flex;align-items:center;gap:1rem;padding:1rem 0}.logo{font-weight:800;font-size:20px;color:var(--navy)}
+.hero{padding:4rem 0 3rem;max-width:720px}.hero h1{font-size:clamp(2rem,5vw,3.4rem)}section.l{padding:2.5rem 0}
+.shell{display:flex;min-height:100vh}.side{width:230px;background:var(--card);border-right:1px solid var(--line);padding:1rem;position:sticky;top:0;height:100vh}
+.side a{display:flex;gap:.6rem;align-items:center;padding:.6rem .75rem;border-radius:8px;color:var(--ink);font-weight:600}.side a.on,.side a:hover{background:var(--soft);color:var(--blue)}
+.main{flex:1;padding:1.5rem;min-width:0;max-width:1100px}.menu{display:none}
+.stat b{font-size:28px;display:block;color:var(--navy)}.empty{text-align:center;color:var(--mut);padding:2rem}
+table{width:100%;border-collapse:collapse}td,th{padding:.55rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.ov{overflow-x:auto}
+.q{border-left:4px solid var(--blue)}.opt{display:flex;gap:.5rem;align-items:center}.opt input[type=radio],.opt input[type=checkbox]{width:auto;margin:0}
+.bar{height:8px;background:var(--line);border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--blue);transition:width .3s}
+.scale{display:flex;gap:.4rem;flex-wrap:wrap}.scale label{border:1px solid var(--line);border-radius:8px;padding:.4rem .8rem;cursor:pointer}.scale input{display:none}.scale input:checked+span{font-weight:800;color:var(--blue)}
+#toast{position:fixed;right:1rem;bottom:1rem;display:grid;gap:.5rem;z-index:9}#toast div{background:var(--navy);color:#fff;padding:.7rem 1rem;border-radius:8px}[data-theme=dark] #toast div{color:#0d1424}#toast .e{background:var(--bad);color:#fff}
+.load{padding:3rem;text-align:center;color:var(--mut)}details{border-bottom:1px solid var(--line);padding:.8rem 0}summary{font-weight:700;cursor:pointer}
+@media(max-width:800px){.side{position:fixed;left:-240px;z-index:5;transition:left .2s}.side.open{left:0}.menu{display:inline-flex}}
+@media print{.side,.menu,.btn{display:none!important}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body><div id="app"></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s),tok=()=>localStorage.getItem('t'),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ic=n=>`<i data-lucide="${n}" style="width:18px;height:18px"></i>`;let ME=null,charts=[];
+const toast=(m,e)=>{const d=document.createElement('div');d.textContent=m;if(e)d.className='e';$('#toast').append(d);setTimeout(()=>d.remove(),3500)};
+async function api(p,o={}){const r=await fetch('/api'+p,{method:o.method||'GET',headers:{'Content-Type':'application/json',...(tok()?{Authorization:'Bearer '+tok()}:{})},body:o.body?JSON.stringify(o.body):undefined});
+ if(o.raw)return r;const d=await r.json().catch(()=>({}));if(!r.ok){if(r.status==401&&tok()){localStorage.removeItem('t');location.hash='#/login'}throw new Error(d.error||'Request failed')}return d}
+const go=h=>location.hash=h,app=h=>{$('#app').innerHTML=h;lucide.createIcons()};
+const theme=t=>document.documentElement.dataset.theme=t;theme(localStorage.getItem('th')||'light');
+const chart=(id,cfg)=>{const c=new Chart($(id),{...cfg,options:{responsive:true,maintainAspectRatio:false,...cfg.options}});charts.push(c)};
+const days=(t,n=14)=>{const l=[];for(let i=n-1;i>=0;i--)l.push(new Date(Date.now()-i*864e5).toISOString().slice(0,10));return{l,v:l.map(d=>t[d]||0)}};
+const tmpl=['Customer satisfaction','Event feedback','Employee engagement','Product research'];
+const faq=[['Is it free to start?','Yes. The Starter plan is free with unlimited surveys.'],['Can respondents stay anonymous?','Yes. Turn anonymous mode on or off per survey.'],['Can I export my data?','Every survey exports to CSV, and reports print to PDF.']];
+
+/* ---------- Landing & auth ---------- */
+const landing=()=>app(`<div class=wrap><nav class=top><span class=logo>${ic('clipboard-list')} SurveyFlow</span><span class=sp></span><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
+<button class=btn data-t=1 onclick="toggleTheme()">${ic('moon')}</button><a class=btn href="#/login">Log in</a><a class="btn p" href="#/register">Get started</a></nav>
+<div class=hero><h1>Ask better questions. Get answers you can act on.</h1><p style="font-size:18px;color:var(--mut)">Build a survey in minutes, share it with a link or QR code, and watch responses turn into clear charts.</p><a class="btn p" href="#/register">Create your first survey</a> <a class=btn href="#/login">Log in</a></div>
+<section class=l id=features><h2>Everything in one place</h2><div class=grid>${[['pencil-ruler','Ten question types','From ratings to dropdowns and dates.'],['share-2','Share anywhere','Public links, QR codes, start and close dates.'],['bar-chart-3','Live analytics','Charts per question, trends, CSV export.'],['shield-check','Privacy controls','Anonymous mode and duplicate protection.']].map(f=>`<div class=card>${ic(f[0])}<h3>${f[1]}</h3><span>${f[2]}</span></div>`).join('')}</div></section>
+<section class=l><h2>How it works</h2><div class=grid>${['Build your questions','Publish and share the link','Review results and export'].map((t,i)=>`<div class=card><b>${i+1}.</b> ${t}</div>`).join('')}</div></section>
+<section class=l><h2>Start from a template</h2><div class=grid>${tmpl.map(t=>`<a class=card href="#/register">${ic('file-text')} ${t}</a>`).join('')}</div></section>
+<section class=l><h2>Teams like ours</h2><div class=grid><div class=card>“We replaced three tools with SurveyFlow.”<br><small>Amina K., Operations</small></div><div class=card>“Response rates doubled with the QR code.”<br><small>David O., Events</small></div></div></section>
+<section class=l id=pricing><h2>Pricing</h2><div class=grid>${[['Starter','$0','Unlimited surveys, 100 responses/month'],['Pro','$19/mo','Unlimited responses, exports, QR codes'],['Team','$49/mo','Shared workspaces and priority support']].map(p=>`<div class=card><h3>${p[0]}</h3><b style="font-size:26px">${p[1]}</b><p>${p[2]}</p><a class=btn href="#/register">Choose ${p[0]}</a></div>`).join('')}</div></section>
+<section class=l id=faq><h2>Questions</h2>${faq.map(f=>`<details><summary>${f[0]}</summary><p>${f[1]}</p></details>`).join('')}</section>
+<footer class=l style="padding:2rem 0;color:var(--mut);border-top:1px solid var(--line)">© ${new Date().getFullYear()} SurveyFlow. All rights reserved.</footer></div>`);
+function toggleTheme(){const t=document.documentElement.dataset.theme=='dark'?'light':'dark';theme(t);localStorage.setItem('th',t);if(tok())api('/me',{method:'PUT',body:{theme:t}}).catch(()=>{})}
+const authPage=m=>{const r=m=='register',f=m=='forgot';app(`<div class=wrap style="max-width:420px;padding-top:4rem"><a href="#/" class=logo>${ic('clipboard-list')} SurveyFlow</a><div class=card style="margin-top:1rem"><h2>${r?'Create your account':f?'Reset your password':'Welcome back'}</h2>
+<form id=af>${r?'<label>Name<input name=name required maxlength=80 autocomplete=name></label>':''}<label>Email<input name=email type=email required autocomplete=email></label>${f?'':`<label>Password<input name=password type=password required minlength=${r?8:1} autocomplete=${r?'new-password':'current-password'}></label>`}
+<p id=err style="color:var(--bad)"></p><button class="btn p" style="width:100%;justify-content:center">${r?'Create account':f?'Send reset link':'Log in'}</button></form>
+<p>${r?'<a href="#/login">Have an account? Log in</a>':f?'<a href="#/login">Back to log in</a>':'<a href="#/register">Create account</a> · <a href="#/forgot">Forgot password?</a>'}</p></div></div>`);
+$('#af').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));try{const d=await api(f?'/auth/forgot':'/auth/'+m,{method:'POST',body:b});
+ if(f){toast(d.message);return}localStorage.setItem('t',d.token);ME=d.user;theme(d.user.theme);go('#/app/dashboard')}catch(x){$('#err').textContent=x.message}}};
+
+/* ---------- App shell ---------- */
+async function shell(active,fn){if(!tok())return go('#/login');if(!ME)try{ME=await api('/me');theme(ME.theme)}catch{return}
+ charts.forEach(c=>c.destroy());charts=[];const nav=[['dashboard','layout-dashboard','Dashboard'],['surveys','list-checks','Surveys'],['builder','plus-circle','New survey'],['settings','settings','Settings']];
+ app(`<div class=shell><aside class=side id=sd><div class=logo style="margin-bottom:1rem">${ic('clipboard-list')} SurveyFlow</div>${nav.map(n=>`<a href="#/app/${n[0]}" class="${active==n[0]?'on':''}">${ic(n[1])}${n[2]}</a>`).join('')}<a href="#" onclick="logout()">${ic('log-out')}Log out</a></aside>
+ <main class=main><div class=row style="margin-bottom:1rem"><button class="btn menu" onclick="$('#sd').classList.toggle('open')">${ic('menu')}</button><span class=sp></span><button class=btn onclick="toggleTheme()">${ic('moon')}</button><span>${esc(ME.name)}</span></div><div id=pg class=load>Loading…</div></main></div>`);
+ try{await fn($('#pg'))}catch(e){$('#pg').className='empty';$('#pg').textContent=e.message}lucide.createIcons()}
+function logout(){localStorage.removeItem('t');ME=null;go('#/')}
+const badge=s=>`<span class="tag ${s}">${s}</span>`,link=p=>location.origin+'/#/s/'+p,ago=d=>new Date(d).toLocaleString();
+
+/* ---------- Dashboard ---------- */
+const dashboard=()=>shell('dashboard',async p=>{const d=await api('/dashboard');p.className='';
+ p.innerHTML=`<div class=row><h1 class=sp>Hello, ${esc(ME.name.split(' ')[0])}</h1><a class="btn p" href="#/app/builder">${ic('plus')}New survey</a></div>
+ <div class=grid>${[['Surveys',d.total],['Active',d.active],['Responses',d.responses],['Completion',d.completion+'%']].map(s=>`<div class="card stat">${s[0]}<b>${s[1]}</b></div>`).join('')}</div>
+ <div class=card><h3>Responses, last 14 days</h3><div style="height:220px"><canvas id=c1></canvas></div></div>
+ <div class=grid><div class=card><h3>Recent surveys</h3>${d.surveys.map(s=>`<div class=row><a class=sp href="#/app/analytics/${s._id}">${esc(s.title)}</a>${badge(s.status)}<small>${s.responses}</small></div>`).join('')||'<div class=empty>No surveys yet. Create your first one.</div>'}</div>
+ <div class=card><h3>Recent responses</h3>${d.recent.map(r=>`<div>${esc(r.who)} → ${esc(r.title)}<br><small>${ago(r.at)}</small></div>`).join('')||'<div class=empty>Responses will appear here.</div>'}</div>
+ <div class=card><h3>Account activity</h3>${d.activity.map(a=>`<div>Updated “${esc(a.title)}” <small>${ago(a.at)}</small></div>`).join('')||'<div class=empty>Nothing yet.</div>'}</div></div>`;
+ const t=days(d.trend);chart('#c1',{type:'line',data:{labels:t.l.map(x=>x.slice(5)),datasets:[{data:t.v,borderColor:'#3b6fd8',backgroundColor:'#3b6fd822',fill:true,tension:.3}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}})});
+
+/* ---------- Survey list ---------- */
+const surveys=()=>shell('surveys',async p=>{let q='',st='';const draw=async()=>{const l=await api(`/surveys?q=${encodeURIComponent(q)}&status=${st}`);$('#sl').innerHTML=l.length?`<div class=ov><table><tr><th>Title<th>Status<th>Responses<th>Link<th></tr>${l.map(s=>`<tr><td><a href="#/app/analytics/${s._id}">${esc(s.title)}</a><td>${badge(s.status)}<td>${s.responses}
+ <td>${s.status!='draft'?`<button class="btn s" onclick="navigator.clipboard.writeText('${link(s.publicId)}');toast('Link copied')">${ic('copy')}Copy</button>`:'—'}
+ <td class=row><a class="btn s" href="#/app/builder/${s._id}">Edit</a><button class="btn s" onclick="act('${s._id}','duplicate')">Duplicate</button>
+ ${s.status=='active'?`<button class="btn s" onclick="setst('${s._id}','closed')">Close</button>`:`<button class="btn s" onclick="setst('${s._id}','active')">${s.status=='closed'?'Reopen':'Publish'}</button>`}<button class="btn s d" onclick="act('${s._id}','delete')">Delete</button></tr>`).join('')}</table></div>`:'<div class=empty>No surveys match. <a href="#/app/builder">Create one</a>.</div>';lucide.createIcons()};
+ p.className='';p.innerHTML=`<div class=row><h1 class=sp>Surveys</h1><a class="btn p" href="#/app/builder">${ic('plus')}New survey</a></div><div class=row><input id=sq placeholder="Search surveys" style="max-width:260px"><select id=sf style="max-width:160px"><option value="">All<option value=draft>Draft<option value=active>Active<option value=closed>Closed</select></div><div class=card id=sl></div>`;
+ $('#sq').oninput=e=>{q=e.target.value;draw()};$('#sf').onchange=e=>{st=e.target.value;draw()};window.refresh=draw;await draw()});
+async function setst(id,s){try{await api(`/surveys/${id}/status`,{method:'POST',body:{status:s}});toast(s=='active'?'Published':'Closed');refresh()}catch(e){toast(e.message,1)}}
+async function act(id,a){try{if(a=='delete'){if(!confirm('Delete this survey and all its responses?'))return;await api('/surveys/'+id,{method:'DELETE'});toast('Deleted')}else{await api(`/surveys/${id}/duplicate`,{method:'POST'});toast('Duplicated')}refresh()}catch(e){toast(e.message,1)}}
+
+/* ---------- Builder ---------- */
+const QT={single:'Single choice',multiple:'Multiple choice',checkbox:'Checkbox',short:'Short text',long:'Long text',rating:'Rating (1–5)',linear:'Linear scale',yesno:'Yes / No',dropdown:'Dropdown',date:'Date'};
+const hasOpt=t=>['single','multiple','dropdown'].includes(t);let S;
+const builder=id=>shell('builder',async p=>{S=id?await api('/surveys/'+id):{title:'',description:'',cover:'',questions:[],status:'draft',anonymous:true};p.className='';draw()});
+function draw(){const s=S,iso=d=>d?new Date(d).toISOString().slice(0,16):'';$('#pg').innerHTML=`<div class=row><h1 class=sp>${s._id?'Edit survey':'New survey'}</h1>${badge(s.status)}<button class=btn onclick=prev()>${ic('eye')}Preview</button><button class=btn onclick="save()">Save draft</button><button class="btn p" onclick="save('active')">Publish</button></div>
+<div class=card><label>Title<input value="${esc(s.title)}" oninput="S.title=this.value" maxlength=200></label><label>Description<textarea rows=3 oninput="S.description=this.value">${esc(s.description)}</textarea></label>
+<label>Cover image (URL or upload, max 500 KB)<input value="${s.cover&&s.cover.startsWith('http')?esc(s.cover):''}" placeholder="https://…" oninput="S.cover=this.value"></label><input type=file accept="image/*" onchange="cover(this)">${s.cover?`<img src="${esc(s.cover)}" style="max-height:120px;border-radius:8px">`:''}</div>
+${s.questions.map((q,i)=>`<div class="card q"><div class=row><b>Q${i+1}</b><select style="max-width:190px" onchange="S.questions[${i}].type=this.value;draw()">${Object.entries(QT).map(([k,v])=>`<option value=${k} ${q.type==k?'selected':''}>${v}`).join('')}</select><label class=opt><input type=checkbox ${q.required?'checked':''} onchange="S.questions[${i}].required=this.checked">Required</label><span class=sp></span>
+<button class="btn s" onclick="mv(${i},-1)">${ic('arrow-up')}</button><button class="btn s" onclick="mv(${i},1)">${ic('arrow-down')}</button><button class="btn s d" onclick="S.questions.splice(${i},1);draw()">${ic('trash-2')}</button></div>
+<input value="${esc(q.text)}" placeholder="Question text" oninput="S.questions[${i}].text=this.value">${hasOpt(q.type)?`<textarea rows=3 placeholder="One option per line" oninput="S.questions[${i}].options=this.value.split('\\n')">${esc((q.options||[]).join('\n'))}</textarea>`:''}
+${q.type=='linear'?`<div class=row>Min <input type=number style="width:80px" value="${q.min??1}" oninput="S.questions[${i}].min=+this.value"> Max <input type=number style="width:80px" value="${q.max??10}" oninput="S.questions[${i}].max=+this.value"></div>`:''}</div>`).join('')||'<div class="card empty">No questions yet. Add your first one below.</div>'}
+<button class=btn onclick="S.questions.push({type:'single',text:'',required:false,options:['Option 1','Option 2']});draw()">${ic('plus')}Add question</button>
+<div class=card style="margin-top:1rem"><h3>Distribution</h3><div class=grid><label>Opens<input type=datetime-local value="${iso(s.startDate)}" onchange="S.startDate=this.value?new Date(this.value).toISOString():null"></label><label>Closes<input type=datetime-local value="${iso(s.closeDate)}" onchange="S.closeDate=this.value?new Date(this.value).toISOString():null"></label><label>Response limit<input type=number min=1 value="${s.responseLimit||''}" onchange="S.responseLimit=this.value?+this.value:null"></label></div>
+<label class=opt><input type=checkbox ${s.anonymous?'checked':''} onchange="S.anonymous=this.checked">Anonymous responses</label>
+${s._id&&s.status!='draft'?`<hr><div class=row><input readonly value="${link(s.publicId)}" style="flex:1"><button class=btn onclick="navigator.clipboard.writeText('${link(s.publicId)}');toast('Link copied')">Copy</button><button class=btn onclick="qr()">QR code</button><a class=btn target=_blank href="https://wa.me/?text=${encodeURIComponent(link(s.publicId))}">WhatsApp</a><a class=btn href="mailto:?subject=${encodeURIComponent(s.title)}&body=${encodeURIComponent(link(s.publicId))}">Email</a>${s.status=='active'?`<button class=btn onclick="setS('closed')">Close survey</button>`:`<button class=btn onclick="setS('active')">Reopen</button>`}</div><div id=qrb></div>`:''}</div>`;lucide.createIcons()}
+const mv=(i,d)=>{const j=i+d,a=S.questions;if(j<0||j>=a.length)return;[a[i],a[j]]=[a[j],a[i]];draw()};
+function cover(el){const f=el.files[0];if(!f)return;if(f.size>5e5)return toast('Image must be under 500 KB',1);const r=new FileReader();r.onload=()=>{S.cover=r.result;draw()};r.readAsDataURL(f)}
+async function save(pub){try{const b={...S};if(!b.title?.trim())return toast('Add a survey title',1);b.questions=b.questions.map(q=>({...q,options:(q.options||[]).filter(x=>x.trim())}));
+ if(b.questions.some(q=>!q.text.trim()))return toast('Every question needs text',1);const d=S._id?await api('/surveys/'+S._id,{method:'PUT',body:b}):await api('/surveys',{method:'POST',body:b});S=d;
+ if(pub){S=await api(`/surveys/${d._id}/status`,{method:'POST',body:{status:'active'}});toast('Published')}else toast('Draft saved');history.replaceState(0,'','#/app/builder/'+S._id);draw()}catch(e){toast(e.message,1)}}
+async function setS(s){try{S=await api(`/surveys/${S._id}/status`,{method:'POST',body:{status:s}});toast(s=='active'?'Published':'Closed');draw()}catch(e){toast(e.message,1)}}
+async function qr(){const d=await api(`/surveys/${S._id}/qr`);$('#qrb').innerHTML=`<img src="${d.dataUrl}" alt="QR code"><br><a class=btn download=qr.png href="${d.dataUrl}">Download</a>`}
+function prev(){const w=document.createElement('div');w.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:8;overflow:auto';w.innerHTML=`<div class=wrap style="max-width:720px;padding:1rem"><button class=btn onclick="this.closest('div[style]').remove()">Close preview</button><div id=pv></div></div>`;document.body.append(w);renderSurvey($('#pv'),{...S,anonymous:S.anonymous},null)}
+
+/* ---------- Analytics ---------- */
+const analytics=id=>shell('surveys',async p=>{const[sv,a]=await Promise.all([api('/surveys/'+id),api(`/surveys/${id}/analytics`)]);p.className='';
+ p.innerHTML=`<div class=row><h1 class=sp>${esc(sv.title)}</h1>${badge(sv.status)}<a class=btn href="#/app/builder/${id}">Edit</a><button class=btn onclick="exp('${id}')">${ic('download')}CSV</button><button class=btn onclick=print()>${ic('file-down')}Report</button></div>
+ <div class=grid>${[['Responses',a.total],['Views',a.views],['Completion',a.completion+'%']].map(s=>`<div class="card stat">${s[0]}<b>${s[1]}</b></div>`).join('')}</div>
+ <div class=card><h3>Response trend</h3><div style="height:200px"><canvas id=tr></canvas></div></div>
+ ${a.questions.map((q,i)=>`<div class=card><h3>${esc(q.text)}</h3><small>${q.count} answers${q.avg?` · average ${q.avg.toFixed(2)}`:''}</small>${q.texts?`<ul>${q.texts.map(t=>`<li>${esc(t)}`).join('')}</ul>`:`<div style="height:${Math.max(120,Object.keys(q.counts).length*34)}px"><canvas id=q${i}></canvas></div>`}</div>`).join('')}
+ <div class=card><h3>Individual responses</h3><input id=rq placeholder="Search responses"><div id=rl class=ov></div></div>`;
+ const t=days(a.trend,Math.min(30,Math.max(7,14)));chart('#tr',{type:'bar',data:{labels:t.l.map(x=>x.slice(5)),datasets:[{data:t.v,backgroundColor:'#3b6fd8'}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}}}}});
+ a.questions.forEach((q,i)=>{if(q.texts)return;const k=Object.keys(q.counts).sort();chart('#q'+i,{type:['single','dropdown','yesno'].includes(q.type)?'doughnut':'bar',data:{labels:k,datasets:[{data:k.map(x=>q.counts[x]),backgroundColor:['#14284b','#3b6fd8','#7aa2f7','#a9c1f5','#1f9d6b','#e0a030']}]},options:{indexAxis:['single','dropdown','yesno'].includes(q.type)?undefined:'y',plugins:{legend:{display:['single','dropdown','yesno'].includes(q.type)}}}})});
+ const rl=async()=>{const r=await api(`/surveys/${id}/responses?q=${encodeURIComponent($('#rq').value)}`);$('#rl').innerHTML=r.responses.length?`<table><tr><th>When<th>Who${r.questions.map(q=>`<th>${esc(q.text)}`).join('')}</tr>${r.responses.map(x=>`<tr><td>${ago(x.createdAt)}<td>${esc(x.participant?.name||'Anonymous')}${r.questions.map(q=>`<td>${esc([].concat(x.answers[q._id]??'').join(', '))}`).join('')}</tr>`).join('')}</table>`:'<div class=empty>No responses found.</div>'};
+ $('#rq').oninput=rl;rl()});
+async function exp(id){const r=await api(`/surveys/${id}/export`,{raw:true});const u=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=u;a.download='responses.csv';a.click()}
+
+/* ---------- Settings ---------- */
+const settings=()=>shell('settings',async p=>{p.className='';p.innerHTML=`<h1>Settings</h1><div class=card><h3>Profile</h3><form id=pf><label>Name<input name=name value="${esc(ME.name)}" required></label><label>Email<input value="${esc(ME.email)}" disabled></label><label>Bio<textarea name=bio maxlength=300>${esc(ME.bio)}</textarea></label>
+ <label class=opt><input type=checkbox name=notifications ${ME.notifications?'checked':''}>Email me about new responses</label><label>Theme<select name=theme><option value=light ${ME.theme=='light'?'selected':''}>Light<option value=dark ${ME.theme=='dark'?'selected':''}>Dark</select></label><button class="btn p">Save changes</button></form></div>
+ <div class=card><h3>Change password</h3><form id=pw><input name=current type=password placeholder="Current password" required><input name=next type=password placeholder="New password (8+ characters)" minlength=8 required><button class="btn p">Update password</button></form></div><button class="btn d" onclick=logout()>Log out</button>`;
+ $('#pf').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{ME=await api('/me',{method:'PUT',body:{name:f.get('name'),bio:f.get('bio'),theme:f.get('theme'),notifications:f.has('notifications')}});theme(ME.theme);localStorage.setItem('th',ME.theme);toast('Settings saved')}catch(x){toast(x.message,1)}};
+ $('#pw').onsubmit=async e=>{e.preventDefault();try{await api('/me/password',{method:'PUT',body:Object.fromEntries(new FormData(e.target))});e.target.reset();toast('Password updated')}catch(x){toast(x.message,1)}}});
+
+/* ---------- Public survey ---------- */
+async function publicPage(pid){app('<div class=load>Loading…</div>');try{const s=await api('/public/'+pid);app('<div class=wrap style="max-width:720px;padding:2rem 1rem" id=ps></div>');renderSurvey($('#ps'),s,pid)}catch(e){app(`<div class=empty>${esc(e.message)}</div>`)}}
+function renderSurvey(el,s,pid){if(s.unavailable){el.innerHTML=`<div class="card empty"><h2>${esc(s.title)}</h2>${esc(s.unavailable)}</div>`;return}
+ const qs=s.questions,per=3,pages=Math.max(1,Math.ceil(qs.length/per));let pg=-1;const A={};const id=q=>q._id||qs.indexOf(q);
+ const inp=q=>{const n='q'+id(q),o=q.options||[];switch(q.type){case'single':return o.map(x=>`<label class=opt><input type=radio name=${n} value="${esc(x)}">${esc(x)}</label>`).join('');
+  case'multiple':return o.map(x=>`<label class=opt><input type=checkbox name=${n} value="${esc(x)}">${esc(x)}</label>`).join('');case'checkbox':return`<label class=opt><input type=checkbox name=${n} value=Yes>Yes, I agree</label>`;
+  case'short':return`<input name=${n} maxlength=500>`;case'long':return`<textarea name=${n} rows=4 maxlength=5000></textarea>`;case'date':return`<input type=date name=${n}>`;
+  case'dropdown':return`<select name=${n}><option value="">Select…</option>${o.map(x=>`<option>${esc(x)}`).join('')}</select>`;case'yesno':return['Yes','No'].map(x=>`<label class=opt><input type=radio name=${n} value=${x}>${x}</label>`).join('');
+  default:{const a=q.type=='rating'?1:q.min??1,b=q.type=='rating'?5:q.max??10,r=[];for(let i=a;i<=b;i++)r.push(`<label><input type=radio name=${n} value=${i}><span>${i}</span></label>`);return`<div class=scale>${r.join('')}</div>`}}};
+ const collect=ps=>{for(const q of ps){const n='q'+id(q),els=[...el.querySelectorAll(`[name=${n}]`)];let v;if(['multiple','checkbox'].includes(q.type))v=els.filter(e=>e.checked).map(e=>e.value);else if(['single','yesno','rating','linear'].includes(q.type))v=(els.find(e=>e.checked)||{}).value;else v=els[0]?.value;
+  if(q.type=='checkbox')v=v.length>0;if(q.required&&(!v||(Array.isArray(v)&&!v.length)||v===''))return'Please answer: '+q.text;if(v!==undefined)A[id(q)]=v}};
+ const view=()=>{if(pg<0){el.innerHTML=`<div class=card>${s.cover?`<img src="${esc(s.cover)}" style="width:100%;border-radius:8px;max-height:220px;object-fit:cover">`:''}<h1>${esc(s.title)}</h1><p>${esc(s.description)}</p>${!s.anonymous?'<input id=pn placeholder="Your name"><input id=pe type=email placeholder="Your email">':''}<button class="btn p" id=st>Start survey</button></div>`;$('#st').onclick=()=>{pg=0;view()};return}
+  const ps=qs.slice(pg*per,pg*per+per),last=pg==pages-1;el.innerHTML=`<div class=bar><i style="width:${Math.round(pg/pages*100)}%"></i></div><p><small>Page ${pg+1} of ${pages}</small></p>${ps.map(q=>`<div class=card><b>${esc(q.text)}${q.required?' <span style=color:var(--bad)>*</span>':''}</b><div style="margin-top:.6rem">${inp(q).replace(/<\/?script/gi,'')}</div></div>`).join('')}<div class=row>${pg?'<button class=btn id=bk>Back</button>':''}<button class="btn p" id=nx>${last?'Submit':'Next'}</button></div>`;
+  ps.forEach(q=>{const v=A[id(q)];if(v===undefined)return;el.querySelectorAll(`[name=q${id(q)}]`).forEach(e=>{if(['radio','checkbox'].includes(e.type))e.checked=[].concat(v).includes(e.value)||v===true;else e.value=v})});
+  if($('#bk'))$('#bk').onclick=()=>{collect(ps);pg--;view()};
+  $('#nx').onclick=async()=>{const e=collect(ps);if(e)return toast(e,1);if(!last){pg++;view();return}
+   if(!pid){toast('Preview only — responses are not saved');return}
+   try{await api(`/public/${pid}/submit`,{method:'POST',body:{answers:A,name:$('#pn')?.value,email:$('#pe')?.value}});el.innerHTML=`<div class="card empty">${ic('check-circle')}<h2>Thank you!</h2>Your response has been recorded.</div>`;lucide.createIcons()}catch(x){toast(x.message,1)}}};
+ view()}
+
+/* ---------- Router ---------- */
+function route(){const[,a,b,c]=(location.hash.slice(1)||'/').split('/');if(a=='s')return publicPage(b);
+ if(a=='app'){if(b=='dashboard')return dashboard();if(b=='surveys')return surveys();if(b=='builder')return builder(c);if(b=='analytics')return analytics(c);if(b=='settings')return settings();return go('#/app/dashboard')}
+ if(['login','register','forgot'].includes(a))return authPage(a);landing()}
+addEventListener('hashchange',route);route();
+</script></body></html>
